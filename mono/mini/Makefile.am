@@ -150,7 +150,7 @@ mono_SOURCES = \
 
 mono_CFLAGS = $(AM_CFLAGS)
 
-INCLUDES = $(LIBGC_CPPFLAGS)
+AM_CPPFLAGS = $(LIBGC_CPPFLAGS)
 
 mono_sgen_SOURCES = $(mono_SOURCES)
 mono_sgen_CFLAGS = $(AM_CFLAGS)
@@ -678,6 +678,9 @@ fullaotcheck: mono $(fullaot_regtests)
 
 llvmfullaotcheck:
 	$(MAKE) fullaotcheck LLVM=1
+
+gccheck: gc-test.exe
+	MONO_GC_PARAMS=stack-mark=precise MONO_GC_DEBUG=clear-at-gc ./mono-sgen gc-test.exe	
 
 bench: mono test.exe
 	time env $(RUNTIME) --ncompile $(count) --compile Test:$(mtest) test.exe

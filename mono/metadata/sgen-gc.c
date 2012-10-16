@@ -217,6 +217,7 @@
 #include "metadata/sgen-archdep.h"
 #include "metadata/sgen-bridge.h"
 #include "metadata/sgen-memory-governor.h"
+#include "metadata/sgen-hash-table.h"
 #include "metadata/mono-gc.h"
 #include "metadata/method-builder.h"
 #include "metadata/profiler-private.h"
@@ -1823,9 +1824,9 @@ stw_bridge_process (void)
 }
 
 static void
-bridge_process (void)
+bridge_process (int generation)
 {
-	sgen_bridge_processing_finish ();
+	sgen_bridge_processing_finish (generation);
 }
 
 SgenObjectOperations *
@@ -2376,7 +2377,7 @@ collect_nursery (void)
 	
 	reset_pinned_from_failed_allocation ();
 
-	binary_protocol_collection (GENERATION_NURSERY);
+	binary_protocol_collection (stat_minor_gcs, GENERATION_NURSERY);
 	check_scan_starts ();
 
 	sgen_nursery_alloc_prepare_for_minor ();
@@ -2621,7 +2622,7 @@ major_do_collection (const char *reason)
 	//count_ref_nonref_objs ();
 	//consistency_check ();
 
-	binary_protocol_collection (GENERATION_OLD);
+	binary_protocol_collection (stat_major_gcs, GENERATION_OLD);
 	check_scan_starts ();
 
 	sgen_gray_object_queue_init (&gray_queue);
@@ -2698,7 +2699,7 @@ major_do_collection (const char *reason)
 		GCRootReport report;
 		report.count = 0;
 		if (sgen_find_optimized_pin_queue_area (bigobj->data, (char*)bigobj->data + bigobj->size, &dummy)) {
-			binary_protocol_pin (bigobj->data, (gpointer)LOAD_VTABLE (bigobj->data), safe_object_get_size (bigobj->data));
+			binary_protocol_pin (bigobj->data, (gpointer)LOAD_VTABLE (bigobj->data), safe_object_get_size (((MonoObject*)(bigobj->data))));
 			if (G_UNLIKELY (MONO_GC_OBJ_PINNED_ENABLED ())) {
 				MonoVTable *vt = (MonoVTable*)LOAD_VTABLE (bigobj->data);
 				MONO_GC_OBJ_PINNED ((mword)bigobj->data, sgen_safe_object_get_size ((MonoObject*)bigobj->data), vt->klass->name_space, vt->klass->name, GENERATION_OLD);
@@ -3433,7 +3434,7 @@ update_current_thread_stack (void *start)
 {
 	int stack_guard = 0;
 #ifndef USE_MONO_CTX
-	void *ptr = cur_thread_regs;
+	void *reg_ptr = cur_thread_regs;
 #endif
 	SgenThreadInfo *info = mono_thread_info_current ();
 	
@@ -3445,8 +3446,8 @@ update_current_thread_stack (void *start)
 	if (gc_callbacks.thread_suspend_func)
 		gc_callbacks.thread_suspend_func (info->runtime_data, NULL, info->monoctx);
 #else
-	ARCH_STORE_REGS (ptr);
-	info->stopped_regs = ptr;
+	ARCH_STORE_REGS (reg_ptr);
+	info->stopped_regs = reg_ptr;
 	if (gc_callbacks.thread_suspend_func)
 		gc_callbacks.thread_suspend_func (info->runtime_data, NULL, NULL);
 #endif
@@ -3480,6 +3481,7 @@ restart_threads_until_none_in_managed_allocator (void)
 			if (!info->thread_is_dying && (!info->stack_start || info->in_critical_region ||
 					is_ip_in_managed_allocator (info->stopped_domain, info->stopped_ip))) {
 				binary_protocol_thread_restart ((gpointer)mono_thread_info_get_tid (info));
+				DEBUG (3, fprintf (gc_debug_file, "thread %p resumed.\n", (void*)info->info.native_handle));
 				result = sgen_resume_thread (info);
 				if (result) {
 					++restart_count;
@@ -3623,7 +3625,7 @@ restart_world (int generation, GGTimingInfo *timing)
 	DEBUG (2, fprintf (gc_debug_file, "restarted %d thread(s) (pause time: %d usec, max: %d)\n", count, (int)usec, (int)max_pause_usec));
 	mono_profiler_gc_event (MONO_GC_EVENT_POST_START_WORLD, generation);
 
-	bridge_process ();
+	bridge_process (generation);
 
 	TV_GETTIME (end_bridge);
 	bridge_usec = TV_ELAPSED (end_sw, end_bridge);
@@ -4192,6 +4194,7 @@ mono_gc_wbarrier_value_copy (gpointer dest, gpointer src, int count, MonoClass *
 
 #ifdef SGEN_BINARY_PROTOCOL
 	{
+		size_t element_size = mono_class_value_size (klass, NULL);
 		int i;
 		for (i = 0; i < count; ++i) {
 			scan_object_for_binary_protocol_copy_wbarrier ((char*)dest + i * element_size,
@@ -4422,6 +4425,18 @@ mono_gc_weak_link_get (void **link_addr)
 	void *ptr = *link_addr;
 	if (!ptr)
 		return NULL;
+
+	/*
+	 * During the second bridge processing step the world is
+	 * running again.  That step processes all weak links once
+	 * more to null those that refer to dead objects.  Before that
+	 * is completed, those links must not be followed, so we
+	 * conservatively wait for bridge processing when any weak
+	 * link is dereferenced.
+	 */
+	if (G_UNLIKELY (bridge_processing_in_progress))
+		mono_gc_wait_for_bridge_processing ();
+
 	return (MonoObject*) REVEAL_POINTER (ptr);
 }
 

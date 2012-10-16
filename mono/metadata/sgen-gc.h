@@ -256,6 +256,8 @@ extern int current_collection_generation;
 
 extern unsigned int sgen_global_stop_count;
 
+extern gboolean bridge_processing_in_progress;
+
 #define SGEN_ALLOC_ALIGN		8
 #define SGEN_ALLOC_ALIGN_BITS	3
 
@@ -424,6 +426,8 @@ enum {
 	INTERNAL_MEM_EPHEMERON_LINK,
 	INTERNAL_MEM_WORKER_DATA,
 	INTERNAL_MEM_BRIDGE_DATA,
+	INTERNAL_MEM_BRIDGE_HASH_TABLE,
+	INTERNAL_MEM_BRIDGE_HASH_TABLE_ENTRY,
 	INTERNAL_MEM_JOB_QUEUE_ENTRY,
 	INTERNAL_MEM_TOGGLEREF_DATA,
 	INTERNAL_MEM_MAX
@@ -778,7 +782,7 @@ gboolean sgen_object_is_live (void *obj) MONO_INTERNAL;
 gboolean sgen_need_bridge_processing (void) MONO_INTERNAL;
 void sgen_bridge_reset_data (void) MONO_INTERNAL;
 void sgen_bridge_processing_stw_step (void) MONO_INTERNAL;
-void sgen_bridge_processing_finish (void) MONO_INTERNAL;
+void sgen_bridge_processing_finish (int generation) MONO_INTERNAL;
 void sgen_register_test_bridge_callbacks (const char *bridge_class_name) MONO_INTERNAL;
 gboolean sgen_is_bridge_object (MonoObject *obj) MONO_INTERNAL;
 gboolean sgen_is_bridge_class (MonoClass *class) MONO_INTERNAL;
@@ -788,6 +792,9 @@ void sgen_bridge_register_finalized_object (MonoObject *object) MONO_INTERNAL;
 void sgen_scan_togglerefs (CopyOrMarkObjectFunc copy_func, char *start, char *end, SgenGrayQueue *queue) MONO_INTERNAL;
 void sgen_process_togglerefs (void) MONO_INTERNAL;
 
+typedef mono_bool (*WeakLinkAlivePredicateFunc) (MonoObject*, void*);
+
+void sgen_null_links_with_predicate (int generation, WeakLinkAlivePredicateFunc predicate, void *data) MONO_INTERNAL;
 
 gboolean sgen_gc_is_object_ready_for_finalization (void *object) MONO_INTERNAL;
 void sgen_gc_lock (void) MONO_INTERNAL;
@@ -856,67 +863,6 @@ void sgen_nursery_alloc_prepare_for_major (void) MONO_INTERNAL;
 
 char* sgen_alloc_for_promotion (char *obj, size_t objsize, gboolean has_references) MONO_INTERNAL;
 char* sgen_par_alloc_for_promotion (char *obj, size_t objsize, gboolean has_references) MONO_INTERNAL;
-
-/* hash tables */
-
-typedef struct _SgenHashTableEntry SgenHashTableEntry;
-struct _SgenHashTableEntry {
-	SgenHashTableEntry *next;
-	gpointer key;
-	char data [MONO_ZERO_LEN_ARRAY]; /* data is pointer-aligned */
-};
-
-typedef struct {
-	int table_mem_type;
-	int entry_mem_type;
-	size_t data_size;
-	GHashFunc hash_func;
-	GEqualFunc equal_func;
-	SgenHashTableEntry **table;
-	guint size;
-	guint num_entries;
-} SgenHashTable;
-
-#define SGEN_HASH_TABLE_INIT(table_type,entry_type,data_size,hash_func,equal_func)	{ (table_type), (entry_type), (data_size), (hash_func), (equal_func), NULL, 0, 0 }
-#define SGEN_HASH_TABLE_ENTRY_SIZE(data_size)			((data_size) + sizeof (SgenHashTableEntry*) + sizeof (gpointer))
-
-gpointer sgen_hash_table_lookup (SgenHashTable *table, gpointer key) MONO_INTERNAL;
-gboolean sgen_hash_table_replace (SgenHashTable *table, gpointer key, gpointer new_value, gpointer old_value) MONO_INTERNAL;
-gboolean sgen_hash_table_set_value (SgenHashTable *table, gpointer key, gpointer new_value, gpointer old_value) MONO_INTERNAL;
-gboolean sgen_hash_table_set_key (SgenHashTable *hash_table, gpointer old_key, gpointer new_key) MONO_INTERNAL;
-gboolean sgen_hash_table_remove (SgenHashTable *table, gpointer key, gpointer data_return) MONO_INTERNAL;
-
-void sgen_hash_table_clean (SgenHashTable *table) MONO_INTERNAL;
-
-#define sgen_hash_table_num_entries(h)	((h)->num_entries)
-
-#define SGEN_HASH_TABLE_FOREACH(h,k,v) do {				\
-		SgenHashTable *__hash_table = (h);			\
-		SgenHashTableEntry **__table = __hash_table->table;	\
-		guint __i;						\
-		for (__i = 0; __i < (h)->size; ++__i) {			\
-			SgenHashTableEntry **__iter, **__next;			\
-			for (__iter = &__table [__i]; *__iter; __iter = __next) {	\
-				SgenHashTableEntry *__entry = *__iter;	\
-				__next = &__entry->next;	\
-				(k) = __entry->key;			\
-				(v) = (gpointer)__entry->data;
-
-/* The loop must be continue'd after using this! */
-#define SGEN_HASH_TABLE_FOREACH_REMOVE(free)	do {			\
-		*__iter = *__next;	\
-		__next = __iter;	\
-		--__hash_table->num_entries;				\
-		if ((free))						\
-			sgen_free_internal (__entry, __hash_table->entry_mem_type); \
-	} while (0)
-
-#define SGEN_HASH_TABLE_FOREACH_SET_KEY(k)	((__entry)->key = (k))
-
-#define SGEN_HASH_TABLE_FOREACH_END					\
-			}						\
-		}							\
-	} while (0)
 
 /* TLS Data */
 
@@ -1037,6 +983,7 @@ void sgen_check_consistency (void);
 void sgen_check_major_refs (void);
 void sgen_check_whole_heap (void);
 void sgen_check_whole_heap_stw (void) MONO_INTERNAL;
+void sgen_check_objref (char *obj);
 
 /* Write barrier support */
 

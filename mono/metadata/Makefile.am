@@ -66,7 +66,7 @@ else
 noinst_LTLIBRARIES = $(boehm_libraries) $(sgen_libraries) $(moonlight_libraries)
 endif
 
-INCLUDES = -I$(top_srcdir) -I$(top_srcdir)/mono $(LIBGC_CPPFLAGS) $(GLIB_CFLAGS) -DMONO_BINDIR=\"$(bindir)/\" -DMONO_ASSEMBLIES=\"$(assembliesdir)\" -DMONO_CFG_DIR=\"$(confdir)\"
+AM_CPPFLAGS = -I$(top_srcdir) -I$(top_srcdir)/mono $(LIBGC_CPPFLAGS) $(GLIB_CFLAGS) -DMONO_BINDIR=\"$(bindir)/\" -DMONO_ASSEMBLIES=\"$(assembliesdir)\" -DMONO_CFG_DIR=\"$(confdir)\"
 
 #
 # Make sure any prefix changes are updated in the binaries too.
@@ -228,6 +228,7 @@ libmonoruntime_la_SOURCES = \
 	sgen-scan-object.h	\
 	sgen-nursery-allocator.c	\
 	sgen-hash-table.c	\
+	sgen-hash-table.h	\
 	sgen-descriptor.c		\
 	sgen-descriptor.h		\
 	sgen-alloc.c		\

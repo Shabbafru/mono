@@ -35,6 +35,7 @@
 #include <glib.h>
 #include "metadata/sgen-gc.h"
 #include "metadata/sgen-archdep.h"
+#include "metadata/sgen-protocol.h"
 #include "metadata/object-internals.h"
 #include "metadata/gc-internal.h"
 
@@ -77,6 +78,7 @@ sgen_suspend_thread (SgenThreadInfo *info)
 	info->stopped_domain = mono_mach_arch_get_tls_value_from_thread (
 		mono_thread_info_get_tid (info), mono_domain_get_tls_offset ());
 	info->stopped_ip = (gpointer) mono_mach_arch_get_ip (state);
+	info->stack_start = NULL;
 	stack_start = (char*) mono_mach_arch_get_sp (state) - REDZONE_SIZE;
 	/* If stack_start is not within the limits, then don't set it in info and we will be restarted. */
 	if (stack_start >= info->stack_start_limit && info->stack_start <= info->stack_end) {
@@ -96,6 +98,10 @@ sgen_suspend_thread (SgenThreadInfo *info)
 	/* Notify the JIT */
 	if (mono_gc_get_gc_callbacks ()->thread_suspend_func)
 		mono_gc_get_gc_callbacks ()->thread_suspend_func (info->runtime_data, &ctx, NULL);
+
+	DEBUG (1, fprintf (gc_debug_file, "thread %p stopped at %p stack_start=%p\n", (void*)info->info.native_handle, info->stopped_ip, info->stack_start));
+
+	binary_protocol_thread_suspend ((gpointer)mono_thread_info_get_tid (info), info->stopped_ip);
 
 	return TRUE;
 }

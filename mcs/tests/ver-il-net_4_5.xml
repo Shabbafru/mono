@@ -24294,6 +24294,30 @@
       </method>
     </type>
   </test>
+  <test name="gtest-lambda-30.cs">
+    <type name="C">
+      <method name="System.Object Method[T](System.Object[])" attrs="145">
+        <size>27</size>
+      </method>
+      <method name="Void Main()" attrs="150">
+        <size>38</size>
+      </method>
+      <method name="System.Func`2[T,System.Object] &lt;Method`1&gt;m__0[T](System.Object)" attrs="145">
+        <size>33</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="C+&lt;Method&gt;c__AnonStorey0`1[T]">
+      <method name="System.Object &lt;&gt;m__1(T)" attrs="131">
+        <size>14</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+  </test>
   <test name="gtest-linq-01.cs">
     <type name="from.C">
       <method name="Void Main()" attrs="150">
@@ -26873,6 +26897,26 @@
     <type name="C">
       <method name="Void Main()" attrs="150">
         <size>2</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+  </test>
+  <test name="gtest-partial-03.cs">
+    <type name="Variable">
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="Test`1[T]">
+      <method name="Void .ctor(T)" attrs="6278">
+        <size>22</size>
+      </method>
+    </type>
+    <type name="CC">
+      <method name="Void Main()" attrs="150">
+        <size>13</size>
       </method>
       <method name="Void .ctor()" attrs="6278">
         <size>7</size>
@@ -56871,6 +56915,41 @@
         <size>13</size>
       </method>
       <method name="Void &lt;&gt;m__0()" attrs="145">
+        <size>2</size>
+      </method>
+    </type>
+  </test>
+  <test name="test-async-40.cs">
+    <type name="Program">
+      <method name="Void F(System.Action`1[Program+C])" attrs="150">
+        <size>13</size>
+      </method>
+      <method name="Void Main()" attrs="150">
+        <size>36</size>
+      </method>
+      <method name="Void &lt;Main&gt;m__0(Program+C)" attrs="145">
+        <size>35</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="Program+C">
+      <method name="Void M()" attrs="134">
+        <size>12</size>
+      </method>
+      <method name="Void .ctor()" attrs="6278">
+        <size>7</size>
+      </method>
+    </type>
+    <type name="Program+&lt;Main&gt;c__async1">
+      <method name="Void MoveNext()" attrs="486">
+        <size>197</size>
+      </method>
+      <method name="Void SetStateMachine(IAsyncStateMachine)" attrs="486">
+        <size>13</size>
+      </method>
+      <method name="Void &lt;&gt;m__1()" attrs="145">
         <size>2</size>
       </method>
     </type>

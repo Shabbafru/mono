@@ -801,6 +801,23 @@ conservative_pass (TlsData *tls, guint8 *stack_start, guint8 *stack_end)
 			}
 			DEBUG (fprintf (logfile, "\t <Last frame>\n"));
 			last = FALSE;
+			/*
+			 * new_reg_locations is not precise when a method is interrupted during its epilog, so clear it.
+			 */
+			for (i = 0; i < MONO_MAX_IREGS; ++i) {
+				if (reg_locations [i]) {
+					DEBUG (fprintf (logfile, "\tscan saved reg %s location %p.\n", mono_arch_regname (i), reg_locations [i]));
+					mono_gc_conservatively_scan_area (reg_locations [i], (char*)reg_locations [i] + SIZEOF_SLOT);
+					scanned_registers += SIZEOF_SLOT;
+				}
+				if (new_reg_locations [i]) {
+					DEBUG (fprintf (logfile, "\tscan saved reg %s location %p.\n", mono_arch_regname (i), new_reg_locations [i]));
+					mono_gc_conservatively_scan_area (new_reg_locations [i], (char*)new_reg_locations [i] + SIZEOF_SLOT);
+					scanned_registers += SIZEOF_SLOT;
+				}
+				reg_locations [i] = NULL;
+				new_reg_locations [i] = NULL;
+			}
 			continue;
 		}
 
@@ -1004,7 +1021,7 @@ conservative_pass (TlsData *tls, guint8 *stack_start, guint8 *stack_end)
 		}
 
 		/*
-		 * Clear locations of precisely stacked registers.
+		 * Clear locations of precisely tracked registers.
 		 */
 		if (precise_regmask) {
 			for (i = 0; i < NREGS; ++i) {
