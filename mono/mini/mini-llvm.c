@@ -2158,6 +2158,10 @@ process_bb (EmitContext *ctx, MonoBasicBlock *bb)
 			 * http://llvm.org/bugs/show_bug.cgi?id=6102
 			 */
 			//LLVM_FAILURE (ctx, "aot+clauses");
+#ifdef TARGET_ARM
+			// test_0_invalid_unbox_arrays () fails
+			LLVM_FAILURE (ctx, "aot+clauses");
+#endif
 		} else {
 			/*
 			 * After the cfg mempool is freed, the type info will point to stale memory,
